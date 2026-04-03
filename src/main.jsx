@@ -3,11 +3,14 @@ import './index.css'
 import App from './App'
 import { BrowserRouter } from 'react-router'
 import { ContextProvider } from './context/DashboardContext'
+import { DashboardProvider } from './context/UserDashboardContext'
 
 createRoot(document.getElementById('root')).render(
-    <ContextProvider>
+<DashboardProvider>
+<ContextProvider>
 <BrowserRouter>
  <App />
 </BrowserRouter>
 </ContextProvider>
+</DashboardProvider>
 )

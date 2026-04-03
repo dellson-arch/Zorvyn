@@ -1,213 +1,294 @@
-import { useContext, useState } from "react";
+import { useContext, useState, useMemo, useEffect } from "react";
 import TransactionForm from "../components/TransactionForm";
 import { DashBoardContext } from "../context/DashboardContext";
-import { MoreVertical, Plus, Search } from "lucide-react";
+import { Plus, Search, LayoutDashboard, ListOrdered, TrendingUp, ShieldCheck, Eye, Sun, Moon } from "lucide-react";
+
+// Helper for the top cards
+const MetricCard = ({ title, value, percentage, isWhite = false }) => {
+  const bgColor = isWhite ? 'bg-white' : 'bg-[#121212] border border-gray-800';
+  const textColor = isWhite ? 'text-gray-900' : 'text-white';
+  const labelColor = isWhite ? 'text-gray-500' : 'text-gray-400';
+
+  return (
+    <div className={`p-6 rounded-3xl ${bgColor} flex flex-col justify-between h-40 transition-all shadow-lg card-theme`}>
+      <div className="flex justify-between items-start">
+        <span className={`text-sm font-medium ${labelColor}`}>{title}</span>
+        <div className={`p-2 rounded-full border ${isWhite ? 'border-gray-200' : 'border-gray-700'}`}>
+          <Plus size={14} className="rotate-45" />
+        </div>
+      </div>
+      <div className="mt-4">
+        <div className="flex items-center gap-2">
+          <h2 className={`text-3xl font-bold ${textColor}`}>
+             {typeof value === 'number' ? `₹${value.toLocaleString()}` : value}
+          </h2>
+          <span className="bg-green-900/30 text-green-400 text-[10px] px-2 py-1 rounded-full">↑ {percentage}%</span>
+        </div>
+        <p className={`text-[10px] mt-1 ${labelColor}`}>This month vs last</p>
+      </div>
+    </div>
+  );
+};
 
 const Dashboard = () => {
+  const [currentView, setCurrentView] = useState("overview");
   const [toggle, setToggle] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  
+  // --- LOCAL STORAGE INITIATION ---
+  
+  // Initialize state from localStorage or use defaults
+ const [userMode, setUserMode] = useState(() => {
+    try {
+      return localStorage.getItem("userMode") || "admin";
+    } catch {
+      return "admin";
+    }
+  });
+
+  const [darkMode, setDarkMode] = useState(() => {
+    try {
+      const savedTheme = localStorage.getItem("darkMode");
+      // Explicitly check for null because JSON.parse(null) is null, but we want true
+      return savedTheme !== null ? JSON.parse(savedTheme) : true;
+    } catch {
+      return true;
+    }
+  });
+
+  // Effect to save settings whenever they change
+  useEffect(() => {
+    localStorage.setItem("userMode", userMode);
+  }, [userMode]);
+
+  useEffect(() => {
+    localStorage.setItem("darkMode", JSON.stringify(darkMode));
+  }, [darkMode]);
+
+  // --------------------------------
+
+  const [hoveredTx, setHoveredTx] = useState(null);
+  const [hoveredSlice, setHoveredSlice] = useState(null);
 
   const { Transactions, DeleteFunction, setEditUser } = useContext(DashBoardContext);
 
-  // Filter transactions based on search
+  const dynamicData = useMemo(() => {
+    const individualData = Transactions.map((t, i) => ({
+      ...t,
+      displayPrice: Number(t.price || t.amount) || 0,
+      index: i
+    }));
+    const maxPrice = Math.max(...individualData.map(d => d.displayPrice), 1);
+    const width = 800; 
+    const height = 150;
+    const points = individualData.map((d, i) => {
+      const x = (i / (individualData.length - 1 || 1)) * width;
+      const y = height - (d.displayPrice / maxPrice) * height;
+      return `${x},${y}`;
+    }).join(" ");
+
+    const catMap = Transactions.reduce((acc, curr) => {
+      const cat = curr.category || "Other";
+      acc[cat] = (acc[cat] || 0) + 1;
+      return acc;
+    }, {});
+
+    const totalOrders = Transactions.length || 1;
+    const colors = ['#3b82f6', '#f59e0b', '#10b981', '#8b5cf6', '#ec4899'];
+    
+    const pieData = Object.entries(catMap).map(([name, count], i) => ({
+      name,
+      count,
+      percent: (count / totalOrders) * 100,
+      color: colors[i % colors.length]
+    }));
+
+    return { 
+      revenue: Transactions.reduce((a, b) => a + (Number(b.price || b.amount) || 0), 0),
+      individualData, maxPrice, points, pieData, totalOrders,
+      statusCounts: {
+        new: Transactions.filter(t => t.status === "new").length,
+        await: Transactions.filter(t => t.status === "await").length,
+        onway: Transactions.filter(t => t.status === "on way").length,
+        delivered: Transactions.filter(t => t.status === "delivered").length,
+      }
+    };
+  }, [Transactions]);
+
   const filteredTransactions = Transactions.filter(t =>
-    t.orderNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     t.customer?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    t.category?.toLowerCase().includes(searchQuery.toLowerCase())
+    t.orderNumber?.toString().toLowerCase().includes(searchQuery.toLowerCase())
   );
-
-  // Calculate stats based on status field
-  const stats = {
-    newOrders: Transactions.filter(t => t.status === "new").length,
-    awaitingOrders: Transactions.filter(t => t.status === "await").length,
-    onWayOrders: Transactions.filter(t => t.status === "on way").length,
-    deliveredOrders: Transactions.filter(t => t.status === "delivered").length,
-  };
-
-  const StatCard = ({ title, count, trend, bgColor }) => (
-    <div className={`rounded-2xl p-6 text-white ${bgColor}`}>
-      <h3 className="text-sm font-medium opacity-90 mb-3">{title}</h3>
-      <div className="flex items-baseline gap-2 mb-2">
-        <span className="text-4xl font-bold">{count}</span>
-        <span className={`text-xs font-semibold px-2 py-1 rounded-full ${trend >= 0 ? "bg-green-300/20 text-green-100" : "bg-red-300/20 text-red-100"}`}>
-          {trend >= 0 ? "↑" : "↓"} {Math.abs(trend)}%
-        </span>
-      </div>
-      <p className="text-xs opacity-75">Than last week</p>
-    </div>
-  );
-
-  const getStatusColor = (status) => {
-    switch(status) {
-      case "delivered":
-        return "bg-green-500/20 text-green-300 border border-green-500/30";
-      case "on way":
-        return "bg-blue-500/20 text-blue-300 border border-blue-500/30";
-      case "await":
-        return "bg-orange-500/20 text-orange-300 border border-orange-500/30";
-      default:
-        return "bg-slate-500/20 text-slate-300 border border-slate-500/30";
-    }
-  };
 
   return (
-    <div className="min-h-screen bg-black text-white p-8">
+    <div className={`min-h-screen transition-all duration-500 ${darkMode ? 'bg-[#080808] text-white' : 'bg-gray-50 text-gray-900'}`}>
       
-      {/* Header */}
-      <h1 className="text-3xl font-bold mb-8">Order list</h1>
-
-      {/* Stat Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <StatCard title="New orders" count={stats.newOrders} trend={2.8} bgColor="bg-gradient-to-br from-emerald-500 to-emerald-600" />
-        <StatCard title="Await accepting orders" count={stats.awaitingOrders} trend={-1.2} bgColor="bg-gradient-to-br from-orange-500 to-orange-600" />
-        <StatCard title="On way orders" count={stats.onWayOrders} trend={-0.6} bgColor="bg-gradient-to-br from-blue-500 to-blue-600" />
-        <StatCard title="Delivered orders" count={stats.deliveredOrders} trend={2.8} bgColor="bg-gradient-to-br from-slate-600 to-slate-700" />
-      </div>
-
-      {/* Table Section */}
-      <div className="bg-slate-900/50 rounded-lg overflow-hidden">
-        
-        {/* Table Controls */}
-        <div className="flex justify-between items-center p-6 border-b border-slate-700">
-          <div className="flex items-center gap-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-500" />
-              <input
-                type="text"
-                placeholder="Search"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="bg-slate-800 border border-slate-700 text-white placeholder-slate-500 px-4 py-2 pl-10 rounded focus:outline-none focus:border-slate-600"
-              />
-            </div>
-            <span className="text-slate-400 text-sm">{filteredTransactions.length} orders</span>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <button className="flex items-center gap-2 text-slate-300 hover:text-white text-sm px-3 py-2 transition-colors">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-              Export
-            </button>
-            <button
-              onClick={() => {
-                setEditUser(null);
-                setToggle(true);
-              }}
-              className="bg-white text-black px-6 py-2 rounded font-medium hover:bg-gray-100 transition-colors flex items-center gap-2"
-            >
-              <Plus size={18} />
-              Add order
-            </button>
-          </div>
-        </div>
-
-        {/* Table */}
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-slate-700">
-                <th className="text-left py-4 px-6 text-xs font-semibold text-slate-400 uppercase">
-                  <input type="checkbox" className="w-4 h-4" />
-                </th>
-                <th className="text-left py-4 px-6 text-xs font-semibold text-slate-400 uppercase">Order Number</th>
-                <th className="text-left py-4 px-6 text-xs font-semibold text-slate-400 uppercase">Customer</th>
-                <th className="text-left py-4 px-6 text-xs font-semibold text-slate-400 uppercase">Category</th>
-                <th className="text-left py-4 px-6 text-xs font-semibold text-slate-400 uppercase">Price</th>
-                <th className="text-left py-4 px-6 text-xs font-semibold text-slate-400 uppercase">Date</th>
-                <th className="text-left py-4 px-6 text-xs font-semibold text-slate-400 uppercase">Payment</th>
-                <th className="text-left py-4 px-6 text-xs font-semibold text-slate-400 uppercase">Status</th>
-                <th className="text-left py-4 px-6 text-xs font-semibold text-slate-400 uppercase"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredTransactions.length > 0 ? (
-                filteredTransactions.map((elem) => (
-                  <tr key={elem.id} className="border-b border-slate-800 hover:bg-slate-800/30 transition-colors">
-                    <td className="py-4 px-6">
-                      <input type="checkbox" className="w-4 h-4" />
-                    </td>
-                    <td className="py-4 px-6 font-semibold text-white">{elem.orderNumber || "N/A"}</td>
-                    <td className="py-4 px-6">
-                      <div>
-                        <p className="font-medium text-white">{elem.customer}</p>
-                        <p className="text-xs text-slate-500">{elem.phone || "No phone"}</p>
-                      </div>
-                    </td>
-                    <td className="py-4 px-6 text-slate-300">{elem.category}</td>
-                    <td className="py-4 px-6 font-semibold text-white">₹{elem.price || elem.amount}</td>
-                    <td className="py-4 px-6 text-slate-300">{elem.date}</td>
-                    <td className="py-4 px-6 text-slate-300">{elem.payment}</td>
-                    <td className="py-4 px-6">
-                      <span className={`px-3 py-1 rounded-full text-xs font-semibold inline-block ${getStatusColor(elem.status)}`}>
-                        {elem.status?.charAt(0).toUpperCase() + elem.status?.slice(1)}
-                      </span>
-                    </td>
-                    <td className="py-4 px-6">
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => {
-                            setEditUser(elem);
-                            setToggle(true);
-                          }}
-                          className="p-2 hover:bg-slate-700 rounded text-slate-400 hover:text-white transition-colors"
-                          title="Edit"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                          </svg>
-                        </button>
-                        <button
-                          onClick={() => {
-                            if (window.confirm("Are you sure you want to delete this order?")) {
-                              DeleteFunction(elem.id);
-                            }
-                          }}
-                          className="p-2 hover:bg-slate-700 rounded text-slate-400 hover:text-red-400 transition-colors"
-                          title="Delete"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        </button>
-                        <button className="p-2 hover:bg-slate-700 rounded text-slate-400 hover:text-white transition-colors">
-                          <MoreVertical size={16} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan="9" className="text-center py-8 text-slate-400">
-                    No orders found
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Modal */}
-      {toggle && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-white text-black rounded-lg p-6 w-full max-w-lg shadow-xl relative">
-            
-            {/* Close button */}
-            <button
-              onClick={() => setToggle(false)}
-              className="absolute top-4 right-4 text-gray-600 hover:text-black text-lg"
-            >
-              ✕
-            </button>
-
-            {/* Form */}
-            <TransactionForm closeForm={() => setToggle(false)} />
-          </div>
-        </div>
+      {!darkMode && (
+        <style>{`
+          .card-theme { background-color: white !important; border-color: #e5e7eb !important; color: #111827 !important; }
+          .bg-\\[\\#121212\\] { background-color: white !important; border-color: #e5e7eb !important; }
+          .text-white { color: #111827 !important; }
+          .text-gray-400 { color: #6b7280 !important; }
+          .border-gray-800 { border-color: #e5e7eb !important; }
+          .bg-black { background-color: #f9fafb !important; border-color: #d1d5db !important; color: #111827 !important; }
+          .bg-\\[\\#0d0d0d\\] { background-color: #f3f4f6 !important; }
+        `}</style>
       )}
+
+      <div className="p-8 font-sans">
+        <header className="flex justify-between items-center mb-10">
+          <div>
+            <h1 className="text-2xl font-bold">Hello, Nayan! 👋</h1>
+            <p className="text-[10px] text-gray-500 font-medium uppercase tracking-widest mt-1">
+              Status: <span className={userMode === "admin" ? "text-red-500" : "text-blue-500"}>{userMode}</span>
+            </p>
+          </div>
+          
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={() => setDarkMode(!darkMode)}
+              className={`p-2 rounded-xl border transition-all ${darkMode ? 'bg-[#121212] border-gray-800 text-yellow-400' : 'bg-white border-gray-200 text-gray-600 shadow-sm'}`}
+            >
+              {darkMode ? <Sun size={18} /> : <Moon size={18} />}
+            </button>
+
+            <button 
+              onClick={() => setUserMode(userMode === "admin" ? "viewer" : "admin")}
+              className="flex items-center gap-2 bg-[#121212] border border-gray-800 px-4 py-2 rounded-xl text-xs font-bold hover:opacity-80 transition-all"
+            >
+              {userMode === "admin" ? <ShieldCheck size={16} className="text-red-400" /> : <Eye size={16} className="text-blue-400" />}
+              {userMode === "admin" ? "Admin" : "Viewer"}
+            </button>
+
+            <div className="flex bg-[#121212] p-1 rounded-2xl border border-gray-800">
+              <button onClick={() => setCurrentView("overview")} className={`flex items-center gap-2 px-6 py-2 rounded-xl text-sm font-bold transition-all ${currentView === 'overview' ? 'bg-white text-black shadow-md' : 'text-gray-400 hover:text-white'}`}>
+                <LayoutDashboard size={16} /> Overview
+              </button>
+              <button onClick={() => setCurrentView("list")} className={`flex items-center gap-2 px-6 py-2 rounded-xl text-sm font-bold transition-all ${currentView === 'list' ? 'bg-white text-black shadow-md' : 'text-gray-400 hover:text-white'}`}>
+                <ListOrdered size={16} /> Order List
+              </button>
+            </div>
+          </div>
+        </header>
+
+        {currentView === "overview" ? (
+          <div className="space-y-8">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              <MetricCard title="Total revenue" value={dynamicData.revenue} percentage="2.6" isWhite />
+              <MetricCard title="Total orders" value={dynamicData.totalOrders} percentage="2.1" />
+              <MetricCard title="Awaiting Orders" value={dynamicData.statusCounts.await} percentage="1.2" />
+              <MetricCard title="Net profit" value={dynamicData.revenue * 0.6} percentage="5.6" />
+            </div>
+
+            <div className="grid grid-cols-12 gap-6">
+              <div className="col-span-8 bg-[#121212] border border-gray-800 rounded-[2.5rem] p-8 h-80 relative overflow-hidden">
+                  <div className="flex justify-between items-center mb-6">
+                      <h3 className="text-sm font-semibold flex items-center gap-2"><TrendingUp size={16} className="text-blue-500" /> Revenue Trends</h3>
+                      {hoveredTx && (
+                        <span className="text-blue-400 text-xs font-mono">{hoveredTx.customer}: ₹{hoveredTx.displayPrice}</span>
+                      )}
+                  </div>
+                  <div className="relative h-44 w-full">
+                    <svg viewBox="0 0 800 150" className="absolute inset-0 w-full h-full" preserveAspectRatio="none">
+                      <polyline fill="none" stroke="#3b82f6" strokeWidth="3" points={dynamicData.points} strokeLinejoin="round" strokeLinecap="round" />
+                    </svg>
+                    <div className="absolute inset-0 flex justify-between items-end gap-1">
+                      {dynamicData.individualData.map((item) => (
+                        <div key={item.id} onMouseEnter={() => setHoveredTx(item)} onMouseLeave={() => setHoveredTx(null)} className="flex-1 group relative flex flex-col justify-end h-full">
+                          <div className={`w-full rounded-t-sm transition-all duration-300 ${hoveredTx?.id === item.id ? 'bg-blue-400' : 'bg-blue-600/10'}`} style={{ height: `${(item.displayPrice / dynamicData.maxPrice) * 100}%` }} />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+              </div>
+
+              <div className="col-span-4 bg-[#121212] border border-gray-800 rounded-[2.5rem] p-8 flex flex-col items-center">
+                  <h3 className="text-sm font-semibold self-start mb-6">Sales by Category</h3>
+                  <div className="w-40 h-40 rounded-full relative" style={{ background: `conic-gradient(${dynamicData.pieData.map((d, i, arr) => {
+                          const offset = arr.slice(0, i).reduce((s, item) => s + item.percent, 0);
+                          return `${d.color} ${offset}% ${offset + d.percent}%`;
+                      }).join(', ') || '#1f2937 0% 100%'})` }}>
+                      <div className={`absolute inset-6 rounded-full flex items-center justify-center border-4 ${darkMode ? 'bg-[#121212] border-[#080808]' : 'bg-white border-gray-50'}`}>
+                          <span className="text-xl font-bold">{dynamicData.totalOrders}</span>
+                      </div>
+                  </div>
+                  <div className="mt-6 w-full space-y-1">
+                    {dynamicData.pieData.map((item, i) => (
+                      <div key={i} onMouseEnter={() => setHoveredSlice(item.name)} onMouseLeave={() => setHoveredSlice(null)} className={`flex justify-between p-2 rounded-lg transition-colors ${hoveredSlice === item.name ? 'bg-white/5' : ''}`}>
+                          <div className="flex items-center gap-2">
+                              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
+                              <span className="text-[10px] text-gray-400">{item.name}</span>
+                          </div>
+                          <span className="text-[10px] font-bold">{item.count}</span>
+                      </div>
+                    ))}
+                  </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            <div className="grid grid-cols-4 gap-4">
+               <div className="bg-emerald-500 p-6 rounded-3xl text-white">New: {dynamicData.statusCounts.new}</div>
+               <div className="bg-orange-500 p-6 rounded-3xl text-white">Await: {dynamicData.statusCounts.await}</div>
+               <div className="bg-blue-600 p-6 rounded-3xl text-white">On Way: {dynamicData.statusCounts.onway}</div>
+               <div className="bg-slate-700 p-6 rounded-3xl text-white">Done: {dynamicData.statusCounts.delivered}</div>
+            </div>
+
+            <div className="bg-[#121212] border border-gray-800 rounded-3xl overflow-hidden">
+              <div className="p-6 border-b border-gray-800 flex justify-between">
+                <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
+                    <input type="text" placeholder="Search..." className="bg-black border border-gray-700 rounded-xl py-2 pl-10 text-sm outline-none w-64" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+                </div>
+                {userMode === "admin" && (
+                  <button onClick={() => { setEditUser(null); setToggle(true); }} className="bg-white text-black px-6 py-2 rounded-xl font-bold hover:bg-gray-200 flex items-center gap-2">
+                    <Plus size={18} /> Add Order
+                  </button>
+                )}
+              </div>
+              <table className="w-full text-left">
+                <thead className="text-[10px] text-gray-500 uppercase bg-[#0d0d0d]">
+                  <tr>
+                    <th className="px-6 py-4">Customer</th>
+                    <th className="px-6 py-4">Category</th>
+                    <th className="px-6 py-4">Price</th>
+                    <th className="px-6 py-4">Status</th>
+                    {userMode === "admin" && <th className="px-6 py-4">Actions</th>}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-800">
+                  {filteredTransactions.map(t => (
+                    <tr key={t.id} className="text-sm hover:bg-white/[0.02]">
+                      <td className="px-6 py-4 font-medium">{t.customer}</td>
+                      <td className="px-6 py-4 text-gray-400">{t.category}</td>
+                      <td className="px-6 py-4 font-bold">₹{Number(t.price || t.amount).toLocaleString()}</td>
+                      <td className="px-6 py-4">
+                          <span className="bg-blue-500/10 text-blue-500 px-3 py-1 rounded-full text-[10px] font-bold uppercase">{t.status}</span>
+                      </td>
+                      {userMode === "admin" && (
+                        <td className="px-6 py-4 flex gap-4">
+                          <button onClick={() => {setEditUser(t); setToggle(true)}} className="text-gray-500 hover:text-white">Edit</button>
+                          <button onClick={() => DeleteFunction(t.id)} className="text-gray-500 hover:text-red-500">Delete</button>
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {toggle && userMode === "admin" && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4">
+            <div className="bg-white text-black rounded-3xl p-10 w-full max-w-lg relative">
+              <button onClick={() => setToggle(false)} className="absolute top-8 right-8 text-gray-400 hover:text-black">✕</button>
+              <TransactionForm closeForm={() => setToggle(false)} />
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 };

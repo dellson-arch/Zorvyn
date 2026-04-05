@@ -1,0 +1,142 @@
+#  SaaS Analytics Dashboard
+
+A high-performance, responsive SaaS analytics dashboard built with **React** and **Tailwind CSS**.
+This project features centralized state management, real-time data visualization, and a sleek modern UI with full dark mode support.
+
+---
+
+##  Features
+
+### 🔹 Single Source of Truth
+
+Managed via **React Context API** to ensure seamless data synchronization across the entire application.
+
+### 🔹 Role-Based Access Control
+
+Toggle between **Admin** and **Viewer** modes to simulate real-world permission logic.
+
+### 🔹 Dynamic Data Visualization
+
+* Custom **SVG-based Revenue Trend** line graphs
+* Interactive **Category Distribution** pie charts
+
+### 🔹 Full CRUD Functionality
+
+* Add, edit, search, and delete orders
+* Instant UI updates
+
+### 🔹 Theming
+
+* Persistent **Dark & Light mode**
+* Powered by Tailwind CSS + localStorage
+
+### 🔹 Fully Responsive
+
+* Mobile-first design
+* Works across all screen sizes
+
+---
+
+## 🛠️ Tech Stack
+
+* **Frontend:** React.js (Hooks, Context API, useMemo)
+* **Styling:** Tailwind CSS (Utility-first)
+* **Icons:** Lucide-React
+* **Build Tool:** Vite
+
+---
+
+## 📂 Project Structure
+
+```
+src/
+├── components/        # Reusable UI components (StatCard, TransactionForm)
+├── context/           # Global state management (DashboardContext)
+├── pages/             # Main view components (Dashboard)
+├── routes/            # Application routing logic
+├── assets/            # Static images and styles
+└── main.jsx           # Entry point
+```
+
+---
+
+## 🚀 Getting Started
+
+### Prerequisites
+
+* Node.js (v16 or higher recommended)
+* npm or yarn
+
+### Installation
+
+Clone the repository:
+
+```bash
+git clone https://github.com/your-username/nayan-dashboard.git
+```
+
+Navigate to the project directory:
+
+```bash
+cd nayan-dashboard
+```
+
+Install dependencies:
+
+```bash
+npm install
+```
+
+Start the development server:
+
+```bash
+npm run dev
+```
+
+Open your browser:
+
+```
+http://localhost:5173
+```
+
+---
+
+## 📸 Screenshots
+
+* Overview (Dark Mode)
+* Order List (Admin View)
+
+---
+
+## 💡 Key Logic Handled
+
+### 📌 Profit Calculation
+
+Net profit is calculated as **60% margin of total revenue**
+
+### 📌 Search Engine
+
+Client-side filtering based on:
+
+* Customer names
+* Order numbers
+
+### 📌 Safety Checks
+
+* Handles zero-state scenarios
+* Displays correct metrics when no transactions exist
+
+---
+
+## 👤 Author
+
+**Nayan**
+
+* GitHub: [[@github-handle](https://github.com/dellson-arch)]
+* LinkedIn: [[@linked-in-handle](www.linkedin.com/in/nayan-mahato-45b315202)]
+
+---
+
+## ⭐ If you like this project
+
+Give it a star on GitHub ⭐

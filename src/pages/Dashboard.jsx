@@ -120,7 +120,7 @@ const Dashboard = () => {
         <header className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-6 mb-8 md:mb-10">
           <div className="flex justify-between items-center w-full lg:w-auto">
             <div>
-              <h1 className="text-xl md:text-2xl font-bold">Hello, Nayan! 👋</h1>
+              <h1 className="text-xl md:text-2xl font-bold">Hello, User! 👋</h1>
               <p className="text-[10px] text-gray-500 font-medium uppercase tracking-widest mt-1">
                 Status: <span className={userMode === "admin" ? "text-red-500" : "text-blue-500"}>{userMode}</span>
               </p>
